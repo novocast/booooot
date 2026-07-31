@@ -1,0 +1,5 @@
+# Force LF line endings for shell scripts so they run correctly in git bash
+# on Windows as well as on Linux (CRLF would break them).
+* text=auto
+*.sh text eol=lf
+booooot text eol=lf

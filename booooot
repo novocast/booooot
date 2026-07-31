@@ -1,0 +1,408 @@
+#!/usr/bin/env bash
+#
+# booooot — the friendly server provisioner. Five o's. Zero fuss.
+#
+# Interface phase: CLI shell, branding, output/error framework, per-command
+# flag parsing, the service catalog, the wizard + dry-run flows, and the
+# status dashboard are in place (tasks 001-008). install/uninstall run in
+# dry-run; doctor is stubbed until its task lands (see documentation/tasks/).
+
+set -euo pipefail
+
+BOOT_VERSION="0.1.0"
+BOOT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BOOT_HOME="${BOOOOOT_HOME:-$HOME/.booooot}"
+
+# --- global option defaults ---
+BOOT_NO_COLOR=0
+BOOT_LOG_LEVEL="${BOOT_LOG_LEVEL:-info}"
+BOOT_LOG_FILE="${BOOT_LOG_FILE:-$BOOT_HOME/logs/booooot.log}"
+BOOT_DRY_RUN=0
+BOOT_YES=0
+BOOT_NO_INPUT=0
+BOOT_STATE_FILE="${BOOT_STATE_FILE:-$BOOT_HOME/state.json}"
+
+# --- load modules ---
+source "$BOOT_ROOT/lib/colors.sh"
+source "$BOOT_ROOT/lib/art.sh"
+source "$BOOT_ROOT/lib/output.sh"
+source "$BOOT_ROOT/lib/errors.sh"
+source "$BOOT_ROOT/lib/utils.sh"
+source "$BOOT_ROOT/lib/args.sh"
+source "$BOOT_ROOT/lib/plan.sh"
+source "$BOOT_ROOT/lib/wizard.sh"
+source "$BOOT_ROOT/lib/flow.sh"
+source "$BOOT_ROOT/lib/state.sh"
+source "$BOOT_ROOT/lib/status.sh"
+source "$BOOT_ROOT/services/index.sh"
+catalog::load
+
+# --- per-command flag specs (global flags are accepted on every command) ---
+G_BOOLS="no-color,dry-run,yes,no-input,help"
+G_VALUES="log-level,state-file"
+INSTALL_BOOLS="$G_BOOLS"
+INSTALL_VALUES="$G_VALUES,target,version,config,profile,plan-file"
+INSTALL_REPEAT="config"
+UNINSTALL_BOOLS="$G_BOOLS"
+UNINSTALL_VALUES="$G_VALUES,target,plan-file"
+STATUS_BOOLS="$G_BOOLS"
+STATUS_VALUES="$G_VALUES"
+DOCTOR_BOOLS="$G_BOOLS"
+DOCTOR_VALUES="$G_VALUES"
+WIZARD_BOOLS="$G_BOOLS"
+WIZARD_VALUES="$G_VALUES"
+LIST_BOOLS="help,no-color"
+
+# --- startup checks ---
+if (( BASH_VERSINFO[0] < 4 )); then
+  printf 'booooot requires bash 4+ (found %s)\n' "$BASH_VERSION" >&2
+  exit 1
+fi
+
+color::init
+
+if [[ -n "$BOOT_LOG_FILE" ]]; then
+  mkdir -p "$(dirname "$BOOT_LOG_FILE")" 2>/dev/null || BOOT_LOG_FILE=""
+  : >> "$BOOT_LOG_FILE" 2>/dev/null || BOOT_LOG_FILE=""
+fi
+
+# --- commands ---
+
+cmd_version() {
+  art::header
+  printf "  %bbooooot %s%b\n" "$C_BOLD" "$BOOT_VERSION" "$C_RESET"
+  printf "  %bbash %s · platform: %s%b\n" "$C_MUTED" "$BASH_VERSION" "$(platform::id)" "$C_RESET"
+  if ! platform::is_debian_family; then
+    printf "  %bnote: not on Debian/Ubuntu — dev/test mode only.%b\n" "$C_WARN" "$C_RESET"
+  fi
+}
+
+cmd_help() {
+  local topic="${1:-}"
+  case "$topic" in
+    "")
+      art::header
+      cat <<'HELP'
+
+  usage: booooot <command> [options]
+
+  commands:
+    wizard      interactive setup wizard              (whiptail TUI, Linux)
+    install     install a service                     (dry-run)
+    uninstall   remove a service                      (dry-run)
+    status      colour-coded state dashboard
+    doctor      diagnose & fix common issues          (coming soon)
+    list        show the service catalog
+    help        show help for a command: booooot help <command>
+    version     show version and the ghost
+
+  global options (before or after the command):
+    --no-color      disable colours (NO_COLOR=1 also works)
+    --log-level     debug | info | warn | error
+    --dry-run       show what would happen, do nothing
+    --yes, -y       assume yes on confirmations
+    --no-input      fail instead of prompting
+    --state-file    path to the state manifest (default ~/.booooot/state.json)
+
+  examples:
+    booooot install php --version 8.3 --target docker --dry-run
+    booooot uninstall mysql --yes
+    booooot help install
+
+  five o's, zero fuss. plan: documentation/GOAL.md
+HELP
+      ;;
+    install)
+      cat <<'HELP'
+
+  usage: booooot install <service> [options]
+
+  Install a service. Currently dry-run only — real installs land in Phase 2.
+
+  services & versions come from the catalog — see 'booooot list'.
+
+  options:
+    --target <t>     direct | docker | vm          (default: direct)
+    --version <x.y>  version to install, e.g. 8.3   (default: catalog default)
+    --config <k=v>   configuration option (repeatable)
+    --profile <p>    config profile (later)
+    --plan-file <f>  dump the plain plan to a file
+    --dry-run        show the plan, do nothing
+    --yes, -y        assume yes
+    --no-input       fail instead of prompting
+
+  examples:
+    booooot install php --version 8.3 --target docker --dry-run
+    booooot install mysql --config root_password=secret --yes
+HELP
+      ;;
+    uninstall)
+      cat <<'HELP'
+
+  usage: booooot uninstall <service> [options]
+
+  Remove a service. Currently dry-run only.
+
+  options:
+    --target <t>     direct | docker | vm          (default: direct)
+    --plan-file <f>  dump the plain plan to a file
+    --dry-run        show the plan, do nothing
+    --yes, -y        assume yes
+    --no-input       fail instead of prompting
+
+  examples:
+    booooot uninstall mysql --yes
+HELP
+      ;;
+    status)
+      cat <<'HELP'
+
+  usage: booooot status [options]
+
+  Colour-coded state dashboard (red/amber/green) read from the state manifest.
+
+  options:
+    --state-file <path>  manifest to read (default ~/.booooot/state.json)
+
+  shows every catalog service with version, target, running state and a
+  health colour: green (installed & running), amber (installed, not
+  running), red (expected but missing). With no manifest it shows the
+  all-red 'nothing installed yet' view instead of erroring.
+HELP
+      ;;
+    doctor)
+      cat <<'HELP'
+
+  usage: booooot doctor [options]
+
+  Diagnose common problems and offer one-command fixes.
+
+  note: doctor lands in task 009 — for now this is a stub.
+HELP
+      ;;
+    list)
+      cat <<'HELP'
+
+  usage: booooot list [options]
+
+  Show the service catalog: every service booooot can manage, with its
+  versions and supported targets. The wizard menus and --config validation
+  read from this same catalog.
+
+  options:
+    --no-color      disable colours
+HELP
+      ;;
+    wizard)
+      cat <<'HELP'
+
+  usage: booooot wizard [options]
+
+  Launch the interactive setup wizard (whiptail/dialog TUI, needs a Linux
+  terminal). Walk through install/uninstall plans; everything is dry-run.
+
+  In a non-TTY or with --no-input the wizard fails gracefully and points at
+  flag mode instead (booooot install <service> --target <t>).
+HELP
+      ;;
+    *)
+      die BOOT-1004 "unknown help topic: $topic" "try: booooot help install"
+      ;;
+  esac
+}
+
+cmd_stub() {
+  local cmd="$1"; shift || true
+  out::warn "'$cmd' isn't built yet — coming soon in the interface phase."
+  out::info "see documentation/tasks/ for the plan, or 'booooot help'."
+}
+
+cmd_status() {
+  if [[ "${BOOT_ARGS[help]:-0}" == "1" ]]; then cmd_help status; return; fi
+  status::render "$BOOT_STATE_FILE"
+}
+
+cmd_install() {
+  if [[ "${BOOT_ARGS[help]:-0}" == "1" ]]; then cmd_help install; return; fi
+
+  local svc="${BOOT_POSARGS[0]:-}"
+  if [[ -z "$svc" ]]; then
+    die BOOT-1004 "install needs a service" "try: booooot install php --version 8.3 --target docker --dry-run"
+  fi
+  if ! catalog::is_service "$svc"; then
+    die BOOT-1004 "unknown service: $svc" \
+        "known services: $(catalog::services_csv) (see 'booooot list')"
+  fi
+
+  local version="${BOOT_ARGS[version]:-$(catalog::default_version "$svc")}"
+  if ! catalog::has_version "$svc" "$version"; then
+    die BOOT-3002 "unknown $svc version: $version" \
+        "valid versions: $(catalog::versions "$svc") (see 'booooot list')"
+  fi
+
+  local target="${BOOT_ARGS[target]:-direct}"
+  if ! catalog::has_target "$svc" "$target"; then
+    die BOOT-1004 "invalid target: $target" \
+        "target must be one of: $(catalog::targets "$svc")"
+  fi
+
+  # validate --config key=value pairs against the catalog
+  local key val err type
+  for key in "${!BOOT_CONFIGS[@]}"; do
+    val="${BOOT_CONFIGS[$key]}"
+    if ! catalog::has_config "$svc" "$key"; then
+      die BOOT-3003 "unknown $svc config: $key" \
+          "valid config keys: $(catalog::configs "$svc") (see 'booooot list')"
+    fi
+    if ! err="$(catalog::validate_config "$svc" "$key" "$val")"; then
+      die BOOT-3004 "invalid --config $key=$val: $err"
+    fi
+    # canonicalise multi-select values so plans are reproducible
+    type="$(catalog::config_get "$svc" "$key" type)"
+    if [[ "$type" == "checklist" ]]; then
+      BOOT_CONFIGS[$key]="$(catalog::sort_csv "$val")"
+    fi
+  done
+
+  local config_lines plan_file
+  config_lines="$(plan::config_lines BOOT_CONFIGS)"
+  plan::install "$svc" "$version" "$target" "$config_lines" "${BOOT_ARGS[profile]:-}"
+
+  plan_file="${BOOT_ARGS[plan-file]:-}"
+  if [[ -n "$plan_file" ]]; then
+    plan::write "$plan_file" "$svc" "$version" "$target" "$config_lines" "${BOOT_ARGS[profile]:-}"
+    out::info "plan written to $plan_file"
+  fi
+
+  if ui::confirm "Install $(catalog::label "$svc") $version via $target?"; then
+    out::ok "BOOT-0000 dry-run complete — nothing was installed."
+  else
+    out::warn "cancelled (BOOT-1005) — nothing was changed."
+  fi
+}
+
+cmd_uninstall() {
+  if [[ "${BOOT_ARGS[help]:-0}" == "1" ]]; then cmd_help uninstall; return; fi
+
+  local svc="${BOOT_POSARGS[0]:-}"
+  if [[ -z "$svc" ]]; then
+    die BOOT-1004 "uninstall needs a service" "try: booooot uninstall mysql --yes"
+  fi
+  if ! catalog::is_service "$svc"; then
+    die BOOT-1004 "unknown service: $svc" \
+        "known services: $(catalog::services_csv) (see 'booooot list')"
+  fi
+
+  local target="${BOOT_ARGS[target]:-direct}"
+  if ! catalog::has_target "$svc" "$target"; then
+    die BOOT-1004 "invalid target: $target" \
+        "target must be one of: $(catalog::targets "$svc")"
+  fi
+
+  plan::uninstall "$svc" "$target"
+  if [[ -n "${BOOT_ARGS[plan-file]:-}" ]]; then
+    plan::uninstall_write "${BOOT_ARGS[plan-file]}" "$svc" "$target"
+    out::info "plan written to ${BOOT_ARGS[plan-file]}"
+  fi
+
+  if ui::confirm "Uninstall $(catalog::label "$svc") from $target?"; then
+    out::ok "BOOT-0000 dry-run complete — nothing was removed."
+  else
+    out::warn "cancelled (BOOT-1005) — nothing was changed."
+  fi
+}
+
+cmd_list() {
+  if [[ "${BOOT_ARGS[help]:-0}" == "1" ]]; then cmd_help list; return; fi
+  art::header
+  out::section "Service catalog"
+  printf "  %-13s %-22s %-22s %s\n" "service" "label" "versions" "targets"
+  local s
+  for s in $(catalog::services); do
+    color::paint "$C_ACCENT" "$(printf '%-13s' "$s")"
+    printf " %-22s %-22s %s\n" \
+      "$(catalog::label "$s")" \
+      "$(catalog::versions "$s")" \
+      "$(catalog::targets "$s")"
+  done
+  printf "\n"
+  out::info "run 'booooot install <service> --version X --target T --config k=v' to plan an install."
+}
+
+cmd_wizard() {
+  if [[ "${BOOT_ARGS[help]:-0}" == "1" ]]; then cmd_help wizard; return; fi
+  wizard::require
+  while :; do
+    if ! wizard::menu "booooot — main menu" \
+        "install"   "Install a service (dry-run)" \
+        "uninstall" "Uninstall a service (dry-run)" \
+        "quit"      "Exit booooot"; then
+      out::warn "cancelled (BOOT-1005) — nothing was changed."
+      return 0
+    fi
+    case "$BOOT_WIZARD_RESULT" in
+      install)   flow::install_wizard ;;
+      uninstall) flow::uninstall_wizard ;;
+      quit)      out::info "Bye! Five o's, zero fuss. 👻"; return 0 ;;
+    esac
+  done
+}
+
+# --- dispatch ---
+
+main() {
+  local args=("$@")
+  local cmd="" rest=()
+
+  # Scan leading global options up to the first command word.
+  while (( ${#args[@]} > 0 )); do
+    case "${args[0]}" in
+      --no-color)   BOOT_NO_COLOR=1; args=("${args[@]:1}") ;;
+      --dry-run)    BOOT_DRY_RUN=1;  args=("${args[@]:1}") ;;
+      --yes|-y)     BOOT_YES=1;      args=("${args[@]:1}") ;;
+      --no-input)   BOOT_NO_INPUT=1; args=("${args[@]:1}") ;;
+      --log-level)
+        if (( ${#args[@]} < 2 )); then die BOOT-1004 "--log-level needs a value (debug|info|warn|error)"; fi
+        BOOT_LOG_LEVEL="${args[1]}"; args=("${args[@]:2}") ;;
+      --state-file)
+        if (( ${#args[@]} < 2 )); then die BOOT-1004 "--state-file needs a path"; fi
+        BOOT_STATE_FILE="${args[1]}"; args=("${args[@]:2}") ;;
+      -h|--help)    cmd="help";    break ;;
+      -V|--version) cmd="version"; break ;;
+      -*)           die BOOT-1004 "unknown option: ${args[0]} (try 'booooot help')" ;;
+      *)            cmd="${args[0]}"; rest=("${args[@]:1}"); break ;;
+    esac
+  done
+
+  if [[ "$BOOT_NO_COLOR" == "1" ]]; then color::init; fi
+
+  # Per-command flag parsing (global flags accepted after the command too).
+  case "${cmd:-}" in
+    install)   args::parse "$INSTALL_BOOLS" "$INSTALL_VALUES" "$INSTALL_REPEAT" "${rest[@]}" ;;
+    uninstall) args::parse "$UNINSTALL_BOOLS" "$UNINSTALL_VALUES" "" "${rest[@]}" ;;
+    status)    args::parse "$STATUS_BOOLS" "$STATUS_VALUES" "" "${rest[@]}" ;;
+    doctor)    args::parse "$DOCTOR_BOOLS" "$DOCTOR_VALUES" "" "${rest[@]}" ;;
+    wizard)    args::parse "$WIZARD_BOOLS" "$WIZARD_VALUES" "" "${rest[@]}" ;;
+    list)      args::parse "$LIST_BOOLS" "" "" "${rest[@]}" ;;
+    help)      args::parse "help" "" "" "${rest[@]}" ;;
+    *)         : ;;
+  esac
+  args::apply_globals
+
+  out::debug "booooot $BOOT_VERSION start (log=$BOOT_LOG_FILE dry_run=$BOOT_DRY_RUN state=$BOOT_STATE_FILE)"
+
+  case "${cmd:-}" in
+    "")                        cmd_help ;;
+    help)                      cmd_help "${BOOT_POSARGS[0]:-}" ;;
+    version)                   cmd_version ;;
+    install)                   cmd_install ;;
+    uninstall)                 cmd_uninstall ;;
+    wizard)                    cmd_wizard ;;
+    list)                      cmd_list ;;
+    status)                    cmd_status ;;
+    doctor)                    cmd_stub "$cmd" ;;
+    *)                         die BOOT-1003 "unknown command: ${cmd:-}" ;;
+  esac
+}
+
+main "$@"

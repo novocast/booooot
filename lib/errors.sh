@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# errors.sh — BOOT error codes and the die() helper.
+#
+# Error code ranges:
+#   0xxx generic/informational, 1xxx platform & usage, 2xxx packages/repos,
+#   3xxx config, 4xxx docker, 5xxx state/manifest.
+
+declare -A BOOT_ERRORS=(
+  [BOOT-0000]="dry-run complete"
+  [BOOT-0001]="not implemented yet"
+  [BOOT-1001]="unsupported platform"
+  [BOOT-1002]="unsupported bash version"
+  [BOOT-1003]="unknown command"
+  [BOOT-1004]="bad usage or unknown option"
+  [BOOT-1005]="cancelled by user"
+  [BOOT-1006]="required tool not found"
+  [BOOT-1007]="wizard needs an interactive terminal"
+  [BOOT-3002]="unknown service version"
+  [BOOT-3003]="unknown config key"
+  [BOOT-3004]="invalid config value"
+  [BOOT-5001]="state manifest unreadable or invalid"
+)
+
+# die <code> [message...] — print a formatted error and exit 1.
+die() {
+  local code="${1:-BOOT-9999}"; shift || true
+  local title="${BOOT_ERRORS[$code]:-unknown error}"
+  out::error "BOOT error: $code — $title"
+  if (( $# > 0 )); then
+    printf "  "
+    color::paint "$C_ERROR" "$*"
+    printf "\n"
+  fi
+  out::_logfile error "$code $*"
+  printf "  %bsee docs/errors.md#%s (error docs land in task 022)%b\n" "$C_MUTED" "$code" "$C_RESET"
+  exit 1
+}

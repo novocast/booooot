@@ -1,0 +1,27 @@
+# booooot — ignore local artefacts
+
+# ---- Logs & local runtime state ----
+logs/
+*.log
+# Local state dir (tests / dev runs)
+.booooot/
+# Throwaway/fake state files for dry-runs & tests (008)
+dev-state*.json
+
+# ---- Test & VM artefacts (Phase 5, 025–027) ----
+# bats scratch files
+tests/tmp/
+# Vagrant test VM (026)
+.vagrant/
+
+# ---- Editor & OS cruft ----
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ---- Development Documentation ----
+documentation/tasks/
