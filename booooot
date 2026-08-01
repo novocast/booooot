@@ -1,12 +1,7 @@
 #!/usr/bin/env bash
 #
-# booooot — the friendly server provisioner. Five o's. Zero fuss.
+# booooot - the friendly server provisioner. Keeping it less scary.
 #
-# Interface phase: CLI shell, branding, output/error framework, per-command
-# flag parsing, the service catalog, the wizard + dry-run flows, the status
-# dashboard, the doctor health-check and the help/about screens are in place
-# (tasks 001-010). install/uninstall run in dry-run; doctor --fix is a dry-run
-# stub until the fixes library lands (task 024).
 
 set -euo pipefail
 
@@ -36,6 +31,9 @@ source "$BOOT_ROOT/lib/flow.sh"
 source "$BOOT_ROOT/lib/state.sh"
 source "$BOOT_ROOT/lib/status.sh"
 source "$BOOT_ROOT/lib/doctor.sh"
+source "$BOOT_ROOT/lib/apt.sh"
+source "$BOOT_ROOT/lib/engine.sh"
+source "$BOOT_ROOT/lib/direct.sh"
 source "$BOOT_ROOT/services/index.sh"
 catalog::load
 
@@ -100,8 +98,8 @@ cmd_help() {
 
   commands:
     wizard      interactive setup wizard              (whiptail TUI, Linux)
-    install     install a service                     (dry-run)
-    uninstall   remove a service                      (dry-run)
+    install     install a service (apt / docker)
+    uninstall   remove a service (apt / docker)
     status      colour-coded state dashboard
     doctor      diagnose & fix common issues
     list        show the service catalog
@@ -131,7 +129,9 @@ HELP
 
   usage: booooot install <service> [options]
 
-  Install a service. Currently dry-run only — real installs land in Phase 2.
+  Install a service — directly on the host via apt, or into Docker. The plan
+  is shown first and you confirm before anything changes (or pass --yes).
+  Use --dry-run to see the exact steps without touching the host.
 
   services & versions come from the catalog — see 'booooot list'.
 
@@ -141,12 +141,12 @@ HELP
     --config <k=v>   configuration option (repeatable)
     --profile <p>    config profile (later)
     --plan-file <f>  dump the plain plan to a file
-    --dry-run        show the plan, do nothing
+    --dry-run        show what would happen, do nothing
     --yes, -y        assume yes
     --no-input       fail instead of prompting
 
   examples:
-    booooot install php --version 8.3 --target docker --dry-run
+    booooot install php --version 8.3 --target direct --dry-run
     booooot install mysql --config root_password=secret --yes
 HELP
       ;;
@@ -155,12 +155,12 @@ HELP
 
   usage: booooot uninstall <service> [options]
 
-  Remove a service. Currently dry-run only.
+  Remove a service — directly from the host via apt, or from Docker.
 
   options:
     --target <t>     direct | docker | vm          (default: direct)
     --plan-file <f>  dump the plain plan to a file
-    --dry-run        show the plan, do nothing
+    --dry-run        show what would happen, do nothing
     --yes, -y        assume yes
     --no-input       fail instead of prompting
 
@@ -337,8 +337,13 @@ cmd_install() {
     out::info "plan written to $plan_file"
   fi
 
+  if [[ "$BOOT_DRY_RUN" == "1" ]]; then
+    engine::install "$svc" "$version" "$target" "$config_lines"
+    return 0
+  fi
+
   if ui::confirm "Install $(catalog::label "$svc") $version via $target?"; then
-    out::ok "BOOT-0000 dry-run complete — nothing was installed."
+    engine::install "$svc" "$version" "$target" "$config_lines"
   else
     out::warn "cancelled (BOOT-1005) — nothing was changed."
   fi
@@ -368,8 +373,13 @@ cmd_uninstall() {
     out::info "plan written to ${BOOT_ARGS[plan-file]}"
   fi
 
+  if [[ "$BOOT_DRY_RUN" == "1" ]]; then
+    engine::uninstall "$svc" "$target"
+    return 0
+  fi
+
   if ui::confirm "Uninstall $(catalog::label "$svc") from $target?"; then
-    out::ok "BOOT-0000 dry-run complete — nothing was removed."
+    engine::uninstall "$svc" "$target"
   else
     out::warn "cancelled (BOOT-1005) — nothing was changed."
   fi

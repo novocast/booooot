@@ -44,4 +44,4 @@ Make provisioning a Debian/Ubuntu server feel like a conversation with a helpful
 
 ## Current phase
 
-**Interface first.** The wizard + CLI + dry-run flows are being built before anything is wired to real installs — so booooot itself can be poked and tested (including from git bash on Windows, and by an LLM driving the CLI) with zero risk. See [`tasks/`](tasks/).
+**Phase 2 — install engine.** The interface (wizard + CLI + catalog + dry-run flows) is done and safe. Plans now execute for real through the direct (tin/apt) target — idempotent, step-by-step output, `--dry-run` previews — with docker and vm targets behind the same step shape (stubs for tasks 013/026). Every step is visible and logged; the state manifest is only written after success. See [`tasks/`](tasks/).

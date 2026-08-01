@@ -158,3 +158,87 @@ state::_parse_fields() {
     body="${body:$(( ${#prefix} + ${#full} ))}"
   done
 }
+
+# --- writing (install engine, tasks 011/023) ------------------------------------
+# The manifest is written only by booooot: the engine records state after a
+# successful install/uninstall. Writes are atomic — a temp file in the same
+# directory is renamed over the target, so a crash never leaves a half-written
+# manifest. STATE_SERVICES / STATE_FIELDS are the in-memory source of truth.
+
+# state::set <svc> <field> <value> — set one field in memory (persist with
+# state::save). Marks the service present in STATE_SERVICES.
+state::set() {
+  local svc="$1" field="$2" value="$3" s
+  STATE_FIELDS[$svc.$field]="$value"
+  for s in "${STATE_SERVICES[@]}"; do
+    [[ "$s" == "$svc" ]] && return 0
+  done
+  STATE_SERVICES+=("$svc")
+}
+
+# state::remove <svc> — drop a service (and all its fields) from memory.
+state::remove() {
+  local svc="$1" key
+  for key in "${!STATE_FIELDS[@]}"; do
+    [[ "$key" == "$svc".* ]] && unset "STATE_FIELDS[$key]"
+  done
+  local -a kept=() s
+  for s in "${STATE_SERVICES[@]}"; do
+    [[ "$s" != "$svc" ]] && kept+=("$s")
+  done
+  STATE_SERVICES=("${kept[@]}")
+}
+
+# state::save <file> — write the manifest from STATE_* (atomic replace).
+state::save() {
+  local file="$1" dir
+  dir="$(dirname "$file")"
+  mkdir -p "$dir" 2>/dev/null || true
+  local tmp="${file}.tmp.$$"
+  if ! state::_write "$tmp"; then
+    rm -f "$tmp" 2>/dev/null || true
+    return 1
+  fi
+  mv "$tmp" "$file" 2>/dev/null || { rm -f "$tmp" 2>/dev/null || true; return 1; }
+  return 0
+}
+
+# state::_write <file> — emit the JSON manifest from STATE_* globals.
+state::_write() {
+  local file="$1"
+  {
+    printf '{\n'
+    printf '  "version": %s,\n' "${STATE_VERSION:-1}"
+    printf '  "services": {\n'
+    local first=1 svc
+    for svc in "${STATE_SERVICES[@]}"; do
+      if (( first )); then first=0; else printf ',\n'; fi
+      state::_write_service "$svc"
+    done
+    printf '\n  }\n'
+    printf '}\n'
+  } > "$file"
+}
+
+# state::_write_service <svc> — one '"name": { fields }' block. Strings stay
+# quoted; 'true'/'false'/'null' and pure integers stay bare.
+state::_write_service() {
+  local svc="$1" key field val
+  printf '    "%s": {\n' "$svc"
+  local -a keys=()
+  mapfile -t keys < <(printf '%s\n' "${!STATE_FIELDS[@]}" | LC_ALL=C sort)
+  local n=0
+  for key in "${keys[@]}"; do
+    [[ "$key" == "$svc".* ]] || continue
+    field="${key#*.}"
+    val="${STATE_FIELDS[$key]}"
+    if (( n )); then printf ',\n'; fi
+    case "$val" in
+      true|false|null) printf '      "%s": %s' "$field" "$val" ;;
+      ''|*[!0-9]*)     printf '      "%s": "%s"' "$field" "$val" ;;
+      *)               printf '      "%s": %s' "$field" "$val" ;;
+    esac
+    n=$((n + 1))
+  done
+  printf '\n    }'
+}

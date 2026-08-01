@@ -32,6 +32,19 @@ platform::is_debian_family() {
   [[ "$id" == "debian" || "$id" == "ubuntu" ]]
 }
 
+# platform::codename — Debian/Ubuntu codename (e.g. 'bookworm', 'noble'), or ''
+# when it can't be determined. Falls back to `lsb_release -sc`.
+platform::codename() {
+  local c=""
+  if [[ -r /etc/os-release ]]; then
+    c="$( . /etc/os-release; printf '%s' "${VERSION_CODENAME:-}" )"
+  fi
+  if [[ -z "$c" ]] && cmd::exists lsb_release; then
+    c="$(lsb_release -sc 2>/dev/null)"
+  fi
+  printf '%s' "$c"
+}
+
 # cmd::exists — true if a command is on PATH.
 cmd::exists() { command -v "$1" >/dev/null 2>&1; }
 

@@ -42,7 +42,11 @@ plan::_lines() {
   if [[ -n "$profile" ]]; then
     printf "%s%-12s %s\n" "$pad" "profile:" "$profile"
   fi
-  printf "%s%-12s %s\n" "$pad" "mode:" "dry-run (nothing will be installed)"
+  if [[ "$BOOT_DRY_RUN" == "1" ]]; then
+    printf "%s%-12s %s\n" "$pad" "mode:" "dry-run (nothing will be installed)"
+  else
+    printf "%s%-12s %s\n" "$pad" "mode:" "install"
+  fi
 }
 
 # plan::install <svc> <version> <target> <config_lines> [profile] — coloured
@@ -75,7 +79,11 @@ plan::_unlines() {
   local svc="$1" target="$2" pad="$3"
   printf "%s%-12s %s\n" "$pad" "service:" "$svc"
   printf "%s%-12s %s\n" "$pad" "target:" "${target:-direct}"
-  printf "%s%-12s %s\n" "$pad" "mode:" "dry-run (nothing will be removed)"
+  if [[ "$BOOT_DRY_RUN" == "1" ]]; then
+    printf "%s%-12s %s\n" "$pad" "mode:" "dry-run (nothing will be removed)"
+  else
+    printf "%s%-12s %s\n" "$pad" "mode:" "uninstall"
+  fi
 }
 
 # plan::uninstall <svc> <target> — coloured console uninstall plan.
