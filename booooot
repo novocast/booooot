@@ -1,11 +1,7 @@
 #!/usr/bin/env bash
 #
-# booooot — the friendly server provisioner. Five o's. Zero fuss.
+# booooot - the friendly server provisioner. Keeping it less scary.
 #
-# Interface (tasks 001-010) plus the Phase 2 install engine (011-012) are in
-# place: plans execute through the direct (tin/apt) target, with docker and vm
-# stubs behind the same step output. doctor --fix is still a dry-run stub
-# until the fixes library lands (task 024).
 
 set -euo pipefail
 
@@ -56,6 +52,8 @@ DOCTOR_VALUES="$G_VALUES,fix"
 WIZARD_BOOLS="$G_BOOLS"
 WIZARD_VALUES="$G_VALUES"
 LIST_BOOLS="help,no-color"
+VERSION_BOOLS="$G_BOOLS"
+VERSION_VALUES="$G_VALUES"
 
 # --- startup checks ---
 if (( BASH_VERSINFO[0] < 4 )); then
@@ -73,12 +71,20 @@ fi
 # --- commands ---
 
 cmd_version() {
+  if [[ "${BOOT_ARGS[help]:-0}" == "1" ]]; then cmd_help version; return; fi
   art::header
   printf "  %bbooooot %s%b\n" "$C_BOLD" "$BOOT_VERSION" "$C_RESET"
   printf "  %bbash %s · platform: %s%b\n" "$C_MUTED" "$BASH_VERSION" "$(platform::id)" "$C_RESET"
+  local pretty
+  pretty="$(platform::pretty_name)"
+  if [[ -n "$pretty" ]]; then
+    printf "  %b%s%b\n" "$C_MUTED" "$pretty" "$C_RESET"
+  fi
   if ! platform::is_debian_family; then
     printf "  %bnote: not on Debian/Ubuntu — dev/test mode only.%b\n" "$C_WARN" "$C_RESET"
   fi
+  printf "\n  %bfive o's, zero fuss · plan: documentation/GOAL.md%b\n" "$C_MUTED" "$C_RESET"
+  printf "  %b'booooot help' for commands & global options.%b\n" "$C_MUTED" "$C_RESET"
 }
 
 cmd_help() {
@@ -98,7 +104,9 @@ cmd_help() {
     doctor      diagnose & fix common issues
     list        show the service catalog
     help        show help for a command: booooot help <command>
-    version     show version and the ghost
+    version     show the version and the about screen
+
+  every command accepts --help — same as 'booooot help <command>'.
 
   global options (before or after the command):
     --no-color      disable colours (NO_COLOR=1 also works)
@@ -222,16 +230,45 @@ HELP
   flag mode instead (booooot install <service> --target <t>).
 HELP
       ;;
+    version)
+      cat <<'HELP'
+
+  usage: booooot version
+
+  Show the version and the about screen: the ghost + banner, the booooot
+  version number, the running bash version and the detected platform.
+
+  options: (none — global options only, e.g. --no-color)
+
+  examples:
+    booooot version
+    booooot --version
+HELP
+      ;;
+    help)
+      cat <<'HELP'
+
+  usage: booooot help [command]
+         booooot <command> --help
+
+  Show help for a command, or the overview when no command is given.
+  Every command has a help entry; --help behaves the same as
+  'booooot help <command>'.
+
+  commands:
+    wizard  install  uninstall  status  doctor  list  help  version
+
+  examples:
+    booooot help
+    booooot help install
+    booooot install --help
+HELP
+      ;;
     *)
-      die BOOT-1004 "unknown help topic: $topic" "try: booooot help install"
+      die BOOT-1004 "unknown help topic: $topic" \
+          "try: booooot help <command> — topics: wizard install uninstall status doctor list help version"
       ;;
   esac
-}
-
-cmd_stub() {
-  local cmd="$1"; shift || true
-  out::warn "'$cmd' isn't built yet — coming soon in the interface phase."
-  out::info "see documentation/tasks/ for the plan, or 'booooot help'."
 }
 
 cmd_status() {
@@ -420,7 +457,8 @@ main() {
     doctor)    args::parse "$DOCTOR_BOOLS" "$DOCTOR_VALUES" "" "${rest[@]}" ;;
     wizard)    args::parse "$WIZARD_BOOLS" "$WIZARD_VALUES" "" "${rest[@]}" ;;
     list)      args::parse "$LIST_BOOLS" "" "" "${rest[@]}" ;;
-    help)      args::parse "help" "" "" "${rest[@]}" ;;
+    version)   args::parse "$VERSION_BOOLS" "$VERSION_VALUES" "" "${rest[@]}" ;;
+    help)      args::parse "$G_BOOLS" "$G_VALUES" "" "${rest[@]}" ;;
     *)         : ;;
   esac
   args::apply_globals

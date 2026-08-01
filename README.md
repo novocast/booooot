@@ -108,7 +108,7 @@ Details live in [`documentation/GOAL.md`](documentation/GOAL.md) and the task li
 - [x] Doctor command & health checks - `lib/doctor.sh` (`009`)
 - [x] Install engine - target abstraction, consistent step output, `--dry-run`, manifest writes - `lib/engine.sh` (`011`)
 - [x] Direct apt installers - idempotent apt, repos/PPAs with rollback, package resolution - `lib/apt.sh`, `lib/direct.sh` (`012`)
-- [ ] Help & about screens (`010`)
+- [x] Help & about screens (`010`)
 
 ## Command quick reference
 
@@ -120,8 +120,8 @@ Details live in [`documentation/GOAL.md`](documentation/GOAL.md) and the task li
 | `booooot status` | colour-coded state dashboard |
 | `booooot list` | show the service catalog |
 | `booooot doctor` | diagnose & fix common issues |
-| `booooot help [command]` | per-command help |
-| `booooot version` | show version and the ghost |
+| `booooot help [command]` | per-command help (every command also accepts `--help`) |
+| `booooot version` | version + about screen (ghost & banner) |
 
 Global options: `--no-color`, `--log-level`, `--dry-run`, `--yes/-y`, `--no-input`, `--state-file`.
 
@@ -135,6 +135,7 @@ booooot status             # colour-coded state dashboard
 booooot status --state-file ./dev-state.json   # with a dev/fake manifest
 booooot doctor             # diagnose & fix common issues
 booooot help install       # per-command help
+booooot version            # version + about screen
 ```
 
 ## Testing
