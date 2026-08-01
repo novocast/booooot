@@ -3,9 +3,10 @@
 # booooot — the friendly server provisioner. Five o's. Zero fuss.
 #
 # Interface phase: CLI shell, branding, output/error framework, per-command
-# flag parsing, the service catalog, the wizard + dry-run flows, and the
-# status dashboard are in place (tasks 001-008). install/uninstall run in
-# dry-run; doctor is stubbed until its task lands (see documentation/tasks/).
+# flag parsing, the service catalog, the wizard + dry-run flows, the status
+# dashboard and the doctor health-check are in place (tasks 001-009).
+# install/uninstall run in dry-run; doctor --fix is a dry-run stub until the
+# fixes library lands (task 024).
 
 set -euo pipefail
 
@@ -34,6 +35,7 @@ source "$BOOT_ROOT/lib/wizard.sh"
 source "$BOOT_ROOT/lib/flow.sh"
 source "$BOOT_ROOT/lib/state.sh"
 source "$BOOT_ROOT/lib/status.sh"
+source "$BOOT_ROOT/lib/doctor.sh"
 source "$BOOT_ROOT/services/index.sh"
 catalog::load
 
@@ -48,7 +50,7 @@ UNINSTALL_VALUES="$G_VALUES,target,plan-file"
 STATUS_BOOLS="$G_BOOLS"
 STATUS_VALUES="$G_VALUES"
 DOCTOR_BOOLS="$G_BOOLS"
-DOCTOR_VALUES="$G_VALUES"
+DOCTOR_VALUES="$G_VALUES,fix"
 WIZARD_BOOLS="$G_BOOLS"
 WIZARD_VALUES="$G_VALUES"
 LIST_BOOLS="help,no-color"
@@ -91,7 +93,7 @@ cmd_help() {
     install     install a service                     (dry-run)
     uninstall   remove a service                      (dry-run)
     status      colour-coded state dashboard
-    doctor      diagnose & fix common issues          (coming soon)
+    doctor      diagnose & fix common issues
     list        show the service catalog
     help        show help for a command: booooot help <command>
     version     show version and the ghost
@@ -177,7 +179,18 @@ HELP
 
   Diagnose common problems and offer one-command fixes.
 
-  note: doctor lands in task 009 — for now this is a stub.
+  Runs a registry of health checks (distro, bash, required tools, state
+  manifest consistency) and prints a colour-coded report. Every line is:
+  [glyph] CODE name — detail  (✓ green pass · ~ amber warn · ✗ red fail)
+
+  options:
+    --fix <service>    dry-run stub: show what fixing a service would do
+                       (the real fixes library lands in task 024)
+    --state-file <path>  manifest to check (default ~/.booooot/state.json)
+
+  examples:
+    booooot doctor
+    booooot doctor --fix php
 HELP
       ;;
     list)
@@ -220,6 +233,15 @@ cmd_stub() {
 cmd_status() {
   if [[ "${BOOT_ARGS[help]:-0}" == "1" ]]; then cmd_help status; return; fi
   status::render "$BOOT_STATE_FILE"
+}
+
+cmd_doctor() {
+  if [[ "${BOOT_ARGS[help]:-0}" == "1" ]]; then cmd_help doctor; return; fi
+  if [[ -n "${BOOT_ARGS[fix]:-}" ]]; then
+    doctor::fix "${BOOT_ARGS[fix]}" "$BOOT_STATE_FILE"
+    return 0
+  fi
+  doctor::render
 }
 
 cmd_install() {
@@ -400,7 +422,7 @@ main() {
     wizard)                    cmd_wizard ;;
     list)                      cmd_list ;;
     status)                    cmd_status ;;
-    doctor)                    cmd_stub "$cmd" ;;
+    doctor)                    cmd_doctor ;;
     *)                         die BOOT-1003 "unknown command: ${cmd:-}" ;;
   esac
 }

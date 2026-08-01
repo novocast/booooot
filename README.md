@@ -81,7 +81,7 @@ Every run greets you with the ghost and the extruded "booooot" banner, hand-draw
 
 ## Status & roadmap
 
-**In development - interface layer done.** The wizard, flag-driven CLI, service catalog, dry-run install/uninstall flows, and the colour-coded status dashboard are implemented and safe to run: nothing touches a real system yet. `doctor` is a stub coming in the next task.
+**In development - interface layer done.** The wizard, flag-driven CLI, service catalog, dry-run install/uninstall flows, the colour-coded status dashboard, and the doctor health-check are implemented and safe to run: nothing touches a real system yet. `doctor --fix` is a dry-run stub until the fixes library lands (task 024).
 
 | Phase | Focus | Status |
 |-------|-------|--------|
@@ -104,7 +104,7 @@ Details live in [`documentation/GOAL.md`](documentation/GOAL.md) and the task li
 - [x] Service catalog metadata - `services/` (`006`)
 - [x] Install / uninstall dry-run planning - `--plan-file` (`007`)
 - [x] Status view & state dashboard - `~/.booooot/state.json` / `--state-file` (`008`)
-- [ ] `doctor` command - stub only (`009`)
+- [x] Doctor command & health checks - `lib/doctor.sh` (`009`)
 - [ ] Help & about screens (`010`)
 
 ## Command quick reference
@@ -116,7 +116,7 @@ Details live in [`documentation/GOAL.md`](documentation/GOAL.md) and the task li
 | `booooot uninstall <svc> [options]` | plan a removal - **dry-run only** (for now) |
 | `booooot status` | colour-coded state dashboard |
 | `booooot list` | show the service catalog |
-| `booooot doctor` | diagnose & fix common issues *(coming soon)* |
+| `booooot doctor` | diagnose & fix common issues |
 | `booooot help [command]` | per-command help |
 | `booooot version` | show version and the ghost |
 
@@ -130,7 +130,7 @@ booooot list               # what's in the catalog
 booooot install php --version 8.3 --target docker --dry-run
 booooot status             # colour-coded state dashboard
 booooot status --state-file ./dev-state.json   # with a dev/fake manifest
-booooot doctor             # diagnose & fix common issues (coming soon)
+booooot doctor             # diagnose & fix common issues
 booooot help install       # per-command help
 ```
 

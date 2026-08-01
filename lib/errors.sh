@@ -15,6 +15,13 @@ declare -A BOOT_ERRORS=(
   [BOOT-1005]="cancelled by user"
   [BOOT-1006]="required tool not found"
   [BOOT-1007]="wizard needs an interactive terminal"
+  # doctor diagnostic codes (task 009) — reported by `booooot doctor`, not die()
+  [BOOT-1201]="unsupported distro (doctor)"
+  [BOOT-1202]="bash version too old (doctor)"
+  [BOOT-1203]="required tool missing (doctor)"
+  [BOOT-1204]="service marked installed but not running"
+  [BOOT-1205]="no state manifest yet"
+  [BOOT-1206]="config sanity check pending (Phase 2)"
   [BOOT-3002]="unknown service version"
   [BOOT-3003]="unknown config key"
   [BOOT-3004]="invalid config value"
