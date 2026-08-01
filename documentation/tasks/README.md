@@ -27,8 +27,8 @@ One file per task. Statuses update as work completes; tasks get fleshed out as w
 | 008 | Status view (state + dashboard) | 1 | ✅ |
 | 009 | Doctor command | 1 | ✅ |
 | 010 | Help & about screens | 1 | 📋 |
-| 011 | Install engine — target abstraction | 2 | 📋 |
-| 012 | Direct apt installers | 2 | 📋 |
+| 011 | Install engine — target abstraction | 2 | ✅ |
+| 012 | Direct apt installers | 2 | ✅ |
 | 013 | Docker compose generator | 2 | 📋 |
 | 014 | Configuration templates | 2 | 📋 |
 | 015 | Service: PHP | 3 | 📋 |

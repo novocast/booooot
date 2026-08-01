@@ -3,9 +3,10 @@
 #
 # The wizard path (booooot wizard) and the flag path (booooot install …)
 # both funnel through plan::* so identical inputs always produce identical
-# plans. This phase stops at "would install": nothing is ever changed.
-# Cancel/ESC at any step walks back one screen; at the top it quits cleanly
-# with a BOOT-1005 note instead of an error.
+# plans. Confirming a plan hands off to the install engine (task 011), which
+# executes it for real (or in dry-run when --dry-run is set). Cancel/ESC at
+# any step walks back one screen; at the top it quits cleanly with a
+# BOOT-1005 note instead of an error.
 
 # flow::menu_service <install|uninstall> — pick a service from the catalog.
 flow::menu_service() {
@@ -137,13 +138,12 @@ flow::install_wizard() {
 
 $plan_text
 
-Nothing will actually be installed — this is a dry run."; then
+Nothing is changed yet — confirm below to install for real."; then
             break
           fi
 
-          if wizard::confirm "Install $(catalog::label "$svc") $version via $target? (dry-run)"; then
-            plan::install "$svc" "$version" "$target" "$config_lines"
-            out::ok "BOOT-0000 dry-run complete — nothing was installed."
+          if wizard::confirm "Install $(catalog::label "$svc") $version via $target?"; then
+            engine::install "$svc" "$version" "$target" "$config_lines"
             return 0
           fi
           # No / ESC on confirm → back to the config questions to edit.

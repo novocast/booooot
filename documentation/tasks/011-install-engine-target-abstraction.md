@@ -1,7 +1,7 @@
 # 011 — Install engine: target abstraction
 
 **Phase:** 2 — Install engine
-**Status:** 📋 Not started
+**Status:** ✅ Done
 **Depends on:** 007
 
 ## Goal
@@ -17,10 +17,10 @@ The core engine that turns a **plan** (from 007) into actions, behind a **target
 
 ## Acceptance criteria
 
-- [ ] Same plan executes through direct and docker paths with consistent step output.
-- [ ] Every step either succeeds, fails with a `BOOT-` code, or is skipped-with-reason (idempotent).
-- [ ] Manifest updated only after success; failed runs leave it untouched (or clearly marked).
-- [ ] `--dry-run` works at engine level (no side effects, same output shape as live).
+- [x] Same plan executes through direct and docker paths with consistent step output.
+- [x] Every step either succeeds, fails with a `BOOT-` code, or is skipped-with-reason (idempotent).
+- [x] Manifest updated only after success; failed runs leave it untouched (or clearly marked).
+- [x] `--dry-run` works at engine level (no side effects, same output shape as live).
 
 ## Notes
 

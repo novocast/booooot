@@ -1,7 +1,7 @@
 # 012 — Direct apt installers
 
 **Phase:** 2 — Install engine
-**Status:** 📋 Not started
+**Status:** ✅ Done
 **Depends on:** 011
 
 ## Goal
@@ -17,10 +17,10 @@ The `direct` (tin) target: install software natively on the host via **apt**, in
 
 ## Acceptance criteria
 
-- [ ] Installing any catalog service via direct target resolves to correct packages for the chosen version and distro.
-- [ ] Re-running is a no-op when already installed (idempotent), with clear "already installed" messaging.
-- [ ] Repo/PPA failures surface with a `BOOT-` code and the exact apt error logged.
-- [ ] All work done under sudo when required, non-interactively where possible.
+- [x] Installing any catalog service via direct target resolves to correct packages for the chosen version and distro.
+- [x] Re-running is a no-op when already installed (idempotent), with clear "already installed" messaging.
+- [x] Repo/PPA failures surface with a `BOOT-` code and the exact apt error logged.
+- [x] All work done under sudo when required, non-interactively where possible.
 
 ## Notes
 

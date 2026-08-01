@@ -25,6 +25,7 @@ booooot asks you what you want in plain language, then does the rest: it can ins
 - [Implemented so far](#implemented-so-far)
 - [Command quick reference](#command-quick-reference)
 - [Planned usage preview](#planned-usage-preview)
+- [Testing](#testing)
 - [Target requirements](#target-requirements)
 - [Repository layout](#repository-layout)
 
@@ -81,13 +82,13 @@ Every run greets you with the ghost and the extruded "booooot" banner, hand-draw
 
 ## Status & roadmap
 
-**In development - interface layer done.** The wizard, flag-driven CLI, service catalog, dry-run install/uninstall flows, the colour-coded status dashboard, and the doctor health-check are implemented and safe to run: nothing touches a real system yet. `doctor --fix` is a dry-run stub until the fixes library lands (task 024).
+**In development - interface + install engine.** The wizard, flag-driven CLI, service catalog, dry-run install/uninstall flows, the colour-coded status dashboard, and the doctor health-check are implemented. The Phase 2 install engine is underway: plans now execute for real through the direct (apt) target — idempotent, with clear step output and `--dry-run` previews — with docker/vm behind the same step shape as stubs. `doctor --fix` is a dry-run stub until the fixes library lands (task 024).
 
 | Phase | Focus | Status |
 |-------|-------|--------|
 | 0 - Foundation | repo layout, branding, output/error framework | done |
-| 1 - Interface | CLI + TUI wizard + catalog + dry-run flows | current |
-| 2 - Install engine | target abstraction, apt installers, docker, config templates | next |
+| 1 - Interface | CLI + TUI wizard + catalog + dry-run flows | done |
+| 2 - Install engine | target abstraction, apt installers, docker, config templates | in progress |
 | 3 - Services | the 7 service modules | planned |
 | 4 - Reliability | error docs, idempotency & state manifest, common fixes | planned |
 | 5 - Testing platform | bats suite, test VM, CI pipeline | planned |
@@ -105,6 +106,8 @@ Details live in [`documentation/GOAL.md`](documentation/GOAL.md) and the task li
 - [x] Install / uninstall dry-run planning - `--plan-file` (`007`)
 - [x] Status view & state dashboard - `~/.booooot/state.json` / `--state-file` (`008`)
 - [x] Doctor command & health checks - `lib/doctor.sh` (`009`)
+- [x] Install engine - target abstraction, consistent step output, `--dry-run`, manifest writes - `lib/engine.sh` (`011`)
+- [x] Direct apt installers - idempotent apt, repos/PPAs with rollback, package resolution - `lib/apt.sh`, `lib/direct.sh` (`012`)
 - [ ] Help & about screens (`010`)
 
 ## Command quick reference
@@ -112,8 +115,8 @@ Details live in [`documentation/GOAL.md`](documentation/GOAL.md) and the task li
 | Command | What it does |
 |---------|--------------|
 | `booooot` / `booooot wizard` | interactive setup wizard (whiptail TUI, Linux) |
-| `booooot install <svc> [options]` | plan an install - **dry-run only** (for now) |
-| `booooot uninstall <svc> [options]` | plan a removal - **dry-run only** (for now) |
+| `booooot install <svc> [options]` | install a service (apt / docker); `--dry-run` to preview |
+| `booooot uninstall <svc> [options]` | remove a service (apt / docker); `--dry-run` to preview |
 | `booooot status` | colour-coded state dashboard |
 | `booooot list` | show the service catalog |
 | `booooot doctor` | diagnose & fix common issues |
@@ -133,6 +136,59 @@ booooot status --state-file ./dev-state.json   # with a dev/fake manifest
 booooot doctor             # diagnose & fix common issues
 booooot help install       # per-command help
 ```
+
+## Testing
+
+booooot is built to be poked at freely. Live installs only ever touch a real
+Debian/Ubuntu host — everywhere else, and with `--dry-run`, nothing is changed.
+
+**Dry-run everywhere.** `install` and `uninstall` accept `--dry-run`: they print
+the exact same step-by-step output as a live run, but with "would …" details,
+no side effects, and **no manifest write**. The whole install engine is
+dry-run-aware, so you can preview any service, version or target safely:
+
+```bash
+booooot install php --version 8.3 --target direct --dry-run
+booooot install elasticsearch --version 8.15 --target direct --dry-run
+booooot install node --version 22 --target docker --dry-run
+booooot uninstall mysql --dry-run
+```
+
+**Isolate state, logs and stamps.** By default booooot keeps its manifest and
+logs under `~/.booooot/`. Point `BOOOOOT_HOME` (or `--state-file` /
+`--log-level`) at a throwaway directory so testing never touches your real
+setup:
+
+```bash
+export BOOOOOT_HOME=/tmp/booooot-test
+booooot status                              # fresh home → "nothing installed yet"
+booooot install php --dry-run --log-level debug   # logs land in $BOOOOOT_HOME/logs/
+```
+
+**Fake manifests.** `status`, `doctor`, idempotency and uninstall-planning can
+be exercised against a hand-written manifest — no install required:
+
+```bash
+printf '%s\n' \
+  '{"version":1,"services":{"mysql":{"installed":true,"version":"8.0","target":"direct","running":true}}}' \
+  > /tmp/booooot-test/state.json
+booooot --state-file /tmp/booooot-test/state.json status
+booooot --state-file /tmp/booooot-test/state.json uninstall mysql --dry-run
+booooot --state-file /tmp/booooot-test/state.json install mysql --version 8.0 --dry-run   # "already installed"
+```
+
+**Read-only commands.** `status`, `list`, `doctor`, `help`, `version` and
+`--plan-file` never modify the host. `doctor --fix` is still a dry-run stub.
+
+**Not on Debian/Ubuntu?** On other platforms (e.g. git bash on Windows, macOS)
+dry-run works fully, and a live install fails fast with a clear `BOOT-` code
+(such as `BOOT-1006` when there is no `sudo`) — nothing is attempted.
+
+**Only run live installs where it's safe.** A real `booooot install` (without
+`--dry-run`) actually installs packages, adds repos/PPAs, writes config and
+starts services. Run it on a Debian/Ubuntu machine you're happy to change — or
+in a throwaway VM/container. The automated test suite (tasks 025-027) exists
+precisely so this is exercised safely.
 
 ## Target requirements
 
