@@ -10,6 +10,21 @@ platform::id() {
   fi
 }
 
+# platform::version_id — VERSION_ID from /etc/os-release (e.g. '24.04'), or ''.
+platform::version_id() {
+  if [[ -r /etc/os-release ]]; then
+    ( . /etc/os-release; printf '%s' "${VERSION_ID:-}" )
+  fi
+}
+
+# platform::pretty_name — PRETTY_NAME from /etc/os-release (e.g. 'Ubuntu 24.04
+# LTS'), or '' when unavailable.
+platform::pretty_name() {
+  if [[ -r /etc/os-release ]]; then
+    ( . /etc/os-release; printf '%s' "${PRETTY_NAME:-}" )
+  fi
+}
+
 # platform::is_debian_family — true on Debian/Ubuntu (booooot's supported OSes).
 platform::is_debian_family() {
   local id

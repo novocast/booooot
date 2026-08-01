@@ -25,8 +25,8 @@ One file per task. Statuses update as work completes; tasks get fleshed out as w
 | 006 | Service catalog metadata | 1 | ✅ |
 | 007 | Install wizard & dry-run flow | 1 | ✅ |
 | 008 | Status view (state + dashboard) | 1 | ✅ |
-| 009 | Doctor command | 1 | 📋 |
-| 010 | Help & about screens | 1 | 📋 |
+| 009 | Doctor command | 1 | ✅ |
+| 010 | Help & about screens | 1 | ✅ |
 | 011 | Install engine — target abstraction | 2 | 📋 |
 | 012 | Direct apt installers | 2 | 📋 |
 | 013 | Docker compose generator | 2 | 📋 |
